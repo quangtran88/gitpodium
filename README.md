@@ -52,20 +52,37 @@ Plus the raw `monthly.csv` and `contrib-commits.tsv` if you want to slice it you
 | Many repos across an org | Clones the whole org (or user) in parallel, one pass |
 | "Just give me a link to share" | Data is **baked into** the HTML — one file, no server |
 
-## Use it as an AI-agent skill (the intended way)
+## Install — copy this to your coding agent
 
-gitpodium ships with skill manifests (`SKILL.md`, `AGENTS.md`) that turn the whole audit
-into a conversation. The agent checks your `gh` login, interviews you for scope, metric,
-filters, and output, runs the pipeline, and surfaces the *churn ≠ contribution* caveat.
+The easiest way: paste this prompt into **Claude Code, Codex, or OpenCode** and let it
+install itself. No manual steps.
 
-- **Claude Code** — symlink the repo into your skills dir; `SKILL.md` is auto-discovered:
-  ```bash
-  git clone https://github.com/quangtran88/gitpodium.git
-  ln -s "$PWD/gitpodium" ~/.claude/skills/gitpodium
-  ```
-  Then just ask: *"Audit contributions across my acme-inc org, rank by commits."*
-- **Codex** / **OpenCode** — both read `AGENTS.md`. Point the agent at the repo (or copy
-  `AGENTS.md` into your project) and ask the same way.
+```text
+Install the "gitpodium" skill for yourself:
+1. Clone https://github.com/quangtran88/gitpodium into a stable location (e.g. ~/tools/gitpodium).
+2. Wire it in as a skill for whatever coding agent you are:
+   - Claude Code    -> symlink the repo dir to ~/.claude/skills/gitpodium
+   - Codex/OpenCode -> make sure you load its AGENTS.md (add the repo to the project, or point your config at it)
+3. Read its SKILL.md so you know the workflow, then tell me it's ready and how to invoke it.
+gitpodium clones GitHub orgs and ranks contributors across all branches of full history
+into one shareable, self-contained HTML leaderboard.
+```
+
+Once installed, just ask: *"Audit contributions across my acme-inc org, rank by commits."*
+The agent checks your `gh` login, interviews you for scope/metric/filters/output, runs the
+pipeline, and hands you `report.html` — surfacing the *churn ≠ contribution* caveat.
+
+<details>
+<summary>Prefer to install manually?</summary>
+
+```bash
+git clone https://github.com/quangtran88/gitpodium.git ~/tools/gitpodium
+# Claude Code — SKILL.md is auto-discovered from the skills dir:
+ln -s ~/tools/gitpodium ~/.claude/skills/gitpodium
+# Codex / OpenCode — they read AGENTS.md; point the agent at the repo
+# or copy AGENTS.md into your project.
+```
+</details>
 
 ## Run it yourself (what the agent runs under the hood)
 
