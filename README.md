@@ -45,6 +45,20 @@ A self-contained `report.html` with:
 Plus the raw `monthly.csv`, `contrib-commits.tsv`, and `github.json` if you want to slice
 it yourself.
 
+### The two views
+
+**Collaboration tab** — PRs, code reviews, review comments and issues per GitHub user.
+Note `micahchen`: **509 PRs but 1,724 reviews** — a heavy reviewer a churn leaderboard would
+badly underrate. The *Churn-blind reviewers* card counts people who review but open no PRs.
+
+![gitpodium Collaboration tab — PR / review / issue leaderboard](docs/collaboration.png)
+
+**Code (git) tab** — churn leaderboard with per-contributor trends over time:
+
+![gitpodium Code tab — churn leaderboard and trend chart](docs/leaderboard.png)
+
+<sub>Names and logins shown are anonymized sample data.</sub>
+
 ## Why it's not just `git shortlog`
 
 | Problem | gitpodium |
