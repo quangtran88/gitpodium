@@ -1,0 +1,13 @@
+{
+  "_comment": "Optional identity overrides for build-mailmap.py. Point at it via GITPODIUM_IDENTITY. Names are 'normalized' (lowercased, spaces/punctuation stripped). Everything here is optional — the tool auto-merges shared-email and same-name identities without any config.",
+
+  "force_merge": [
+    ["janedoe", "janedoecorp"]
+  ],
+
+  "canonical_override": {
+    "acmebot": ["Jane Doe", "jane@acme.com"]
+  },
+
+  "extra_bots": ["ci-runner", "release-bot", "dependabot"]
+}

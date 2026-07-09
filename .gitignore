@@ -1,0 +1,12 @@
+# gitpodium run artifacts — generated, never committed
+clones/
+contrib-commits.tsv
+monthly.json
+monthly.csv
+report.html
+.mailmap
+mailmap-review.md
+clone-failures.log
+/gitpodium.config.sh
+/gitpodium.identity.json
+out/

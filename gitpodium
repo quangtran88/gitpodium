@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# gitpodium — rank git contributors across all branches/history of GitHub owners,
+# then generate a self-contained HTML leaderboard. All artifacts land in the CURRENT
+# directory (override with GITPODIUM_OUT). If ./gitpodium.config.sh exists it is sourced.
+#
+# Commands:
+#   gitpodium run <owner>...     clone -> mailmap -> collect -> rollup -> report.html   (the whole thing)
+#   gitpodium clone <owner>...   clone/update repos only
+#   gitpodium mailmap [clones]   (re)build the identity .mailmap
+#   gitpodium collect [clones]   walk all branches -> contrib-commits.tsv
+#   gitpodium rollup             tsv -> monthly.json + monthly.csv
+#   gitpodium report             monthly.json -> self-contained report.html
+#   gitpodium rank [args...]     console leaderboard (see: gitpodium rank -h via report.sh header)
+#
+# <owner> is a GitHub org OR user. Filters: MAXCHURN / MAXFILES / DROP_BOTS (env).
+set -euo pipefail
+HERE="$(cd "$(dirname "$0")" && pwd)"
+BIN="$HERE/bin"
+[ -f "$PWD/gitpodium.config.sh" ] && . "$PWD/gitpodium.config.sh"
+export GITPODIUM_OUT="${GITPODIUM_OUT:-$PWD}"
+CLONES="${GITPODIUM_CLONES:-$PWD/clones}"
+
+usage(){ sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; }
+
+cmd="${1:-help}"; shift || true
+case "$cmd" in
+  clone)   "$BIN/clone-all.sh" "$@" ;;
+  mailmap) "$BIN/build-mailmap.py" "${1:-$CLONES}" ;;
+  collect) "$BIN/collect.sh" "${1:-$CLONES}" ;;
+  rollup)  "$BIN/rollup.sh" ;;
+  report)  "$BIN/build-report.py" "$@" ;;
+  rank)    "$BIN/report.sh" "$@" ;;
+  run)
+    "$BIN/clone-all.sh" "$@"
+    "$BIN/build-mailmap.py" "$CLONES"
+    "$BIN/collect.sh" "$CLONES"
+    "$BIN/rollup.sh"
+    "$BIN/build-report.py"
+    echo "----------------------------------------"
+    echo "done -> $GITPODIUM_OUT/report.html"
+    ;;
+  help|-h|--help) usage ;;
+  *) echo "unknown command: $cmd" >&2; echo >&2; usage >&2; exit 2 ;;
+esac
