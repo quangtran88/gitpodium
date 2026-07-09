@@ -15,24 +15,32 @@ Triggers: "who contributed most", "rank contributors", "contribution/activity au
    (needs `repo` + `read:org` scopes). Confirm `git` + `python3`. Don't proceed until green.
 2. **Scope.** Ask which GitHub **owners** (orgs and/or users), or a specific `owner/repo`
    list. Private repos need token access.
-3. **Metric.** Ask how to rank: `churn` (default) / `commits` / `added` / `deleted` /
-   `net` / `repos`. → `GITPODIUM_METRIC`.
+3. **Metric.** Ask how to rank the git-churn view: `churn` (default) / `commits` /
+   `added` / `deleted` / `net` / `repos`. → `GITPODIUM_METRIC`.
 4. **Window.** All-time or a date range; bucket the console view by month/quarter/year.
 5. **Filters.** Bots off by default (`DROP_BOTS=1`); bulk/vendored dumps dropped via
    `MAXCHURN=10000`/`MAXFILES=400`. Offer raw (all `0`).
 6. **Output.** Where `report.html` goes → `GITPODIUM_OUT` (default: current dir).
 7. **Confirm** the plan, then run (export the env, then):
    ```bash
-   ./gitpodium run <owner...>        # clone → mailmap → collect → rollup → report.html
+   ./gitpodium run <owner...>        # clone → mailmap → collect → rollup → github → report.html
    ```
+   `run` also pulls **PRs, code reviews, review comments, and issues** from the GitHub API
+   (`gitpodium github`) into a **Collaboration** tab keyed by GitHub login — the review/PR
+   work git churn can't see. It's best-effort: needs the `gh` API and GitHub-hosted repos,
+   skip with `GITPODIUM_SKIP_GITHUB=1` (non-GitHub repos / rate limit). Issues may be sparse
+   if the team uses Jira/Linear — expected, not a bug.
 8. **Review identities** (optional): after the mailmap step, offer `mailmap-review.md`;
    confirmed merges go into `GITPODIUM_IDENTITY=gitpodium.identity.json`, then re-run.
 9. **Deliver:** point to `report.html`, narrate the top contributors via `./gitpodium rank`
-   (it prints how much was dropped as bulk/bots), and give the caveat below.
+   (it prints how much was dropped as bulk/bots), point out the **Collaboration tab**'s top
+   reviewers + "churn-blind reviewers" (heavy reviewers who open few PRs), and give the
+   caveat below.
 
 Full step-by-step and the flag↔answer table live in `SKILL.md`.
 
 ## Non-negotiable caveat to surface every time
 Churn (added+deleted lines) ≠ contribution. Review, mentoring, design, and debugging
-don't show up in git; squash-merged/deleted branches are lost. Present the output as a
+don't show up in git; squash-merged/deleted branches are lost. The Collaboration tab
+recovers *some* of that (reviews, PRs, issues) but not all of it. Present the output as a
 **conversation-starter, never a stack-rank or performance metric.**

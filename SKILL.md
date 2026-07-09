@@ -1,6 +1,6 @@
 ---
 name: gitpodium
-description: Interactively run a git contribution audit for the user. Use when someone asks "who contributed most" across a company's/team's repos, wants a contribution or activity audit, a per-month/quarter contributor breakdown, or a shareable contributor leaderboard. This skill DRIVES the setup — it checks prerequisites (GitHub CLI auth), interviews the user for scope (which orgs/users/repos), the ranking metric, noise filters, and output, then clones, dedups identities, and produces a single self-contained HTML report. Do NOT expect the user to run commands themselves; you run the pipeline for them.
+description: Interactively run a git contribution audit for the user. Use when someone asks "who contributed most" across a company's/team's repos, wants a contribution or activity audit, a per-month/quarter contributor breakdown, a code-review/pull-request/issue breakdown, or a shareable contributor leaderboard. This skill DRIVES the setup — it checks prerequisites (GitHub CLI auth), interviews the user for scope (which orgs/users/repos), the ranking metric, noise filters, and output, then clones, dedups identities, and produces a single self-contained HTML report covering both git churn AND (from the GitHub API) pull-request / code-review / review-comment / issue activity — so reviewers who write little code still show up. Do NOT expect the user to run commands themselves; you run the pipeline for them.
 ---
 
 # gitpodium — interactive contribution audit
@@ -50,7 +50,21 @@ sets the default view and the headline you report):
 | `net` | added − deleted |
 | `repos` | breadth (how many repos touched) |
 
-Map → `GITPODIUM_METRIC=<choice>` (passed to the report build).
+Map → `GITPODIUM_METRIC=<choice>` (passed to the report build). This ranks the **git
+churn** view. The report also ships a **Collaboration tab** (next paragraph) with its own
+GitHub metrics — no need to choose between them, both are built.
+
+### Also collected: GitHub collaboration (PRs, reviews, issues)
+
+Beyond git history, gitpodium pulls **pull requests, code reviews, review comments, and
+issues** from the GitHub API (`gitpodium github`) into a second **Collaboration** tab,
+keyed by GitHub login. This is the work churn is blind to — a heavy reviewer who writes
+little code finally ranks. Mention it when you pitch the report. Caveats to relay:
+- Needs the `gh` API and only covers **GitHub-hosted** repos the token can see; subject to
+  the GraphQL rate limit. Set `GITPODIUM_SKIP_GITHUB=1` to skip it (non-GitHub repos, or to
+  save rate limit).
+- **Issues** may be near-empty if the team uses Jira/Linear — that's expected, not a bug.
+- Bots (GraphQL `Bot`-type actors, `*[bot]`, `extra_bots`) are excluded from reviewers too.
 
 ## Step 3 — Time window
 
@@ -87,9 +101,11 @@ export GITPODIUM_OUT="<out-dir>" GITPODIUM_METRIC="<metric>" \
 "$GP/bin/build-mailmap.py" "$GITPODIUM_OUT/clones"
 "$GP/bin/collect.sh"       "$GITPODIUM_OUT/clones"
 "$GP/bin/rollup.sh"
-"$GP/bin/build-report.py"                    # -> $GITPODIUM_OUT/report.html
+"$GP/bin/collect-github.py" <owners...>      # PRs/reviews/issues -> github.json (gh API; skip w/ GITPODIUM_SKIP_GITHUB=1)
+"$GP/bin/build-report.py"                    # -> $GITPODIUM_OUT/report.html (embeds both datasets)
 ```
-(Equivalent one-shot: `"$GP/gitpodium" run <owners...>` after exporting the env vars.)
+(Equivalent one-shot: `"$GP/gitpodium" run <owners...>` after exporting the env vars —
+`run` includes the GitHub step best-effort, so the git report still builds if the API fails.)
 
 ## Step 7 — Review identities (offer, don't force)
 
@@ -106,18 +122,23 @@ After `build-mailmap.py`, it prints how many identities merged and writes
 - Narrate the top few contributors with `"$GP/bin/report.sh"` (respects the same
   window/filter env). The transparency line shows how many commits/churn were dropped
   as bulk/bots — mention it so nothing looks hidden.
+- Point out the **Collaboration tab** (if `github.json` was built): the top reviewers and
+  the "churn-blind reviewers" count — people who review a lot but open few PRs, whom the
+  git leaderboard misses entirely. This is the headline reason to look past churn.
 - **ALWAYS close with the caveat** (non-negotiable):
 
 > Churn ≠ contribution. Code review, mentoring, design, and debugging are invisible to
-> git; squash-merged/deleted branches are unrecoverable. This is a **conversation-starter,
-> not a stack-rank or a performance metric.**
+> git; squash-merged/deleted branches are unrecoverable. The Collaboration tab recovers
+> *some* of that (reviews, PRs, issues) but not all of it. This is a
+> **conversation-starter, not a stack-rank or a performance metric.**
 
 ## Quick reference (flag ↔ interview answer)
 
 | Interview answer | Wiring |
 |---|---|
 | Owners / repos | `clone-all.sh <owner...>` or `-f repos.txt` |
-| Metric | `GITPODIUM_METRIC=churn\|commits\|added\|deleted\|net\|repos` |
+| Metric (git churn view) | `GITPODIUM_METRIC=churn\|commits\|added\|deleted\|net\|repos` |
+| Collaboration (PRs/reviews/issues) | `collect-github.py <owner...>` → `github.json` · skip: `GITPODIUM_SKIP_GITHUB=1` |
 | Window / bucket | `report.sh FROM TO [month\|quarter\|year]` |
 | Bots / bulk filters | `DROP_BOTS` `MAXCHURN` `MAXFILES` |
 | Identity merges | `GITPODIUM_IDENTITY=gitpodium.identity.json` |

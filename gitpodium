@@ -4,15 +4,17 @@
 # directory (override with GITPODIUM_OUT). If ./gitpodium.config.sh exists it is sourced.
 #
 # Commands:
-#   gitpodium run <owner>...     clone -> mailmap -> collect -> rollup -> report.html   (the whole thing)
+#   gitpodium run <owner>...     clone -> mailmap -> collect -> rollup -> github -> report.html
 #   gitpodium clone <owner>...   clone/update repos only
 #   gitpodium mailmap [clones]   (re)build the identity .mailmap
 #   gitpodium collect [clones]   walk all branches -> contrib-commits.tsv
 #   gitpodium rollup             tsv -> monthly.json + monthly.csv
-#   gitpodium report             monthly.json -> self-contained report.html
+#   gitpodium github <owner>...  GitHub PRs/reviews/issues -> github.json (Collaboration tab)
+#   gitpodium report             monthly.json (+github.json) -> self-contained report.html
 #   gitpodium rank [args...]     console leaderboard (see: gitpodium rank -h via report.sh header)
 #
 # <owner> is a GitHub org OR user. Filters: MAXCHURN / MAXFILES / DROP_BOTS (env).
+# GITPODIUM_SKIP_GITHUB=1 skips the (API-based, GitHub-only) collaboration step in `run`.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 BIN="$HERE/bin"
@@ -28,6 +30,7 @@ case "$cmd" in
   mailmap) "$BIN/build-mailmap.py" "${1:-$CLONES}" ;;
   collect) "$BIN/collect.sh" "${1:-$CLONES}" ;;
   rollup)  "$BIN/rollup.sh" ;;
+  github)  "$BIN/collect-github.py" "$@" ;;
   report)  "$BIN/build-report.py" "$@" ;;
   rank)    "$BIN/report.sh" "$@" ;;
   run)
@@ -35,6 +38,13 @@ case "$cmd" in
     "$BIN/build-mailmap.py" "$CLONES"
     "$BIN/collect.sh" "$CLONES"
     "$BIN/rollup.sh"
+    # GitHub collaboration data is best-effort: needs the API + GitHub-hosted repos,
+    # and the git report must still build if it's unavailable. Drop any stale github.json
+    # first so a failed run can't silently serve last run's numbers.
+    if [ "${GITPODIUM_SKIP_GITHUB:-0}" = "0" ]; then
+      rm -f "$GITPODIUM_OUT/github.json"
+      "$BIN/collect-github.py" "$@" || echo "note: GitHub collaboration step skipped/failed — report still built from git history."
+    fi
     "$BIN/build-report.py"
     echo "----------------------------------------"
     echo "done -> $GITPODIUM_OUT/report.html"

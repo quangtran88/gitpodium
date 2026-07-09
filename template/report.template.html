@@ -167,8 +167,13 @@ const esc=s=>s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 /* ---------- state ---------- */
 const METRICS={churn:'Churn',commits:'Commits',added:'Added',deleted:'Deleted',net:'Net (add−del)',repos:'Repos'};
 const METRIC_DEFAULT=(window.__GITPODIUM_METRIC__ in METRICS)?window.__GITPODIUM_METRIC__:'churn';   // gitpodium: agent-chosen default
-const state={g:'all',p:'',metric:METRIC_DEFAULT,q:'',topN:8,from:'',to:'',a:'',sort:null,dir:-1};
+// GitHub collaboration metrics (optional second dataset — PRs/reviews/issues, keyed by login)
+const GH_METRICS={reviews:'Reviews',review_comments:'Review comments',prs_opened:'PRs opened',prs_merged:'PRs merged',issues:'Issues'};
+const state={g:'all',p:'',metric:METRIC_DEFAULT,q:'',topN:8,from:'',to:'',a:'',sort:null,dir:-1,
+  view:'code',ghMetric:'reviews',ghYear:'',ghSort:null,ghDir:-1};
 let RAW=[],monthsAll=[],byMonth=new Map(),perAM=new Map(),monthRank=new Map(),hidden=new Set();
+let GH=[];
+const HAS_GH=()=>GH.length>0;
 
 /* ---------- month helpers (string compare works on YYYY-MM) ---------- */
 const ymAdd=(ym,d)=>{let[y,m]=ym.split('-').map(Number);let i=y*12+(m-1)+d;return `${Math.floor(i/12)}-${String(i%12+1).padStart(2,'0')}`;};
@@ -219,12 +224,15 @@ const rankBy=(map,metric)=>{const arr=[...map.values()].sort((x,y)=>mv(y,metric)
 /* ---------- URL hash ---------- */
 let applying=false;
 function readHash(){
-  Object.assign(state,{g:'all',p:'',metric:METRIC_DEFAULT,q:'',from:'',to:'',a:'',topN:8,sort:null,dir:-1});
+  Object.assign(state,{g:'all',p:'',metric:METRIC_DEFAULT,q:'',from:'',to:'',a:'',topN:8,sort:null,dir:-1,
+    view:'code',ghMetric:'reviews',ghYear:'',ghSort:null,ghDir:-1});
   const p=new URLSearchParams(location.hash.slice(1));
-  for(const k of ['g','p','metric','q','from','to','a'])if(p.has(k))state[k]=p.get(k);
+  for(const k of ['g','p','metric','q','from','to','a','view','ghMetric','ghYear'])if(p.has(k))state[k]=p.get(k);
   if(p.has('n'))state.topN=+p.get('n')||8;
   if(p.has('s')){state.sort=p.get('s');state.dir=+p.get('d')||-1;}
   if(!METRICS[state.metric])state.metric='churn';
+  if(state.view!=='collab')state.view='code';
+  if(!GH_METRICS[state.ghMetric])state.ghMetric='reviews';
 }
 function writeHash(){
   if(applying)return;
@@ -233,6 +241,8 @@ function writeHash(){
   if(state.q)p.set('q',state.q);if(state.from)p.set('from',state.from);if(state.to)p.set('to',state.to);
   if(state.topN!==8)p.set('n',state.topN);if(state.a)p.set('a',state.a);
   if(state.sort){p.set('s',state.sort);p.set('d',state.dir);}
+  if(state.view==='collab'){p.set('view','collab');
+    if(state.ghMetric!=='reviews')p.set('ghMetric',state.ghMetric);if(state.ghYear)p.set('ghYear',state.ghYear);}
   history.replaceState(null,'','#'+p.toString());
 }
 
@@ -270,6 +280,8 @@ function compute(){
   return pm;
 }
 function render(){
+  if(HAS_GH())applyView();
+  if(state.view==='collab'&&HAS_GH()){renderCollab();return;}
   ensurePeriod();
   const pm=compute();
   writeHash();
@@ -532,40 +544,163 @@ function setTheme(t,re=true){
   if(re&&CUR)renderTrend(CUR._pm);
 }
 
+/* ================= COLLABORATION (GitHub PRs / reviews / issues) ================= */
+function prepGH(){
+  const raw=window.__GITPODIUM_GITHUB__;
+  GH=Array.isArray(raw)?raw.filter(r=>r&&r.month&&r.login):[];
+}
+function ghYears(){return [...new Set(GH.map(r=>r.month.slice(0,4)))].sort().reverse();}
+function ghPeriodLabel(){return state.ghYear||'All-time';}
+function ghAggregate(year){
+  const map=new Map();
+  for(const r of GH){
+    if(year&&r.month.slice(0,4)!==year)continue;
+    let a=map.get(r.login);if(!a)map.set(r.login,a={login:r.login,prs_opened:0,prs_merged:0,reviews:0,review_comments:0,issues:0});
+    a.prs_opened+=r.prs_opened||0;a.prs_merged+=r.prs_merged||0;a.reviews+=r.reviews||0;
+    a.review_comments+=r.review_comments||0;a.issues+=r.issues||0;
+  }
+  return [...map.values()];
+}
+function applyView(){
+  const cv=$('#codeView'),gv=$('#collabView');if(!gv)return;
+  cv.hidden=state.view==='collab';gv.hidden=state.view!=='collab';
+  const seg=$('#viewSeg');if(seg)seg.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.view===state.view));
+}
+function renderCollab(){
+  writeHash();
+  const years=ghYears();
+  const yearSel=`<option value="" ${!state.ghYear?'selected':''}>All-time</option>`+
+    years.map(y=>`<option ${y===state.ghYear?'selected':''}>${y}</option>`).join('');
+  const metricSel=Object.entries(GH_METRICS).map(([k,v])=>`<option value="${k}" ${k===state.ghMetric?'selected':''}>${v}</option>`).join('');
+  $('#ctlBarGH').innerHTML=`
+    <div class="ctl"><label for="ghYearSel">Period</label><select id="ghYearSel">${yearSel}</select></div>
+    <div class="ctl"><label for="ghMSel">Rank by</label><select id="ghMSel">${metricSel}</select></div>`;
+  $('#ghYearSel').onchange=e=>{state.ghYear=e.target.value;renderCollab();};
+  $('#ghMSel').onchange=e=>{state.ghMetric=e.target.value;state.ghSort=null;state.ghDir=-1;renderCollab();};
+  const arr=ghAggregate(state.ghYear);
+  const sum=k=>arr.reduce((s,a)=>s+a[k],0);
+  const topRev=[...arr].sort((a,b)=>b.reviews-a.reviews)[0];
+  const reviewOnly=arr.filter(a=>a.reviews>0&&a.prs_opened===0);
+  const issues=sum('issues');
+  const cards=[
+    ['PRs opened',fmt(sum('prs_opened')),''],
+    ['PRs merged',fmt(sum('prs_merged')),''],
+    ['Reviews given',fmt(sum('reviews')),'distinct PR reviews',1],
+    ['Review comments',fmt(sum('review_comments')),'inline code comments',1],
+    ['Issues opened',fmt(issues),issues?'':'none — org may track issues elsewhere'],
+    ['Top reviewer',topRev?`<span title="${esc(topRev.login)}">${esc(topRev.login)}</span>`:'–',topRev?`${fmt(topRev.reviews)} reviews`:'',0,1],
+    ['Churn-blind reviewers',fmt(reviewOnly.length),'people who review but open no PRs — invisible to a commit leaderboard',1],
+    ['People',fmt(arr.length),'distinct GitHub logins'],
+  ];
+  $('#cardsGH').innerHTML=cards.map(([k,v,d,hint,big])=>
+    `<div class="card"><div class="k">${hint?`<span class="hint" title="${esc(d)}">${k}</span>`:k}</div>`+
+    `<div class="v"${big?' style="font-size:17px"':''}>${v}</div>`+
+    `${d&&!hint?`<div class="d">${esc(d)}</div>`:''}</div>`).join('');
+  renderGHTable(arr);
+}
+function renderGHTable(arr){
+  const M=state.ghMetric;
+  const sortKey=state.ghSort||M, dir=state.ghSort?state.ghDir:-1;
+  const list=arr.slice().sort((a,b)=>
+    (sortKey==='login'?dir*a.login.localeCompare(b.login):dir*((a[sortKey]||0)-(b[sortKey]||0)))||((b[M]||0)-(a[M]||0)));
+  list.forEach((a,i)=>a._rank=i+1);
+  const maxM=Math.max(1,...arr.map(a=>a[M]||0));
+  const cols=[
+    {k:'_rank',lab:'#',l:1,cls:'rankcell',nosort:1,cell:a=>a._rank},
+    {k:'login',lab:'GitHub user',l:1,cls:'name',cell:a=>`<span title="${esc(a.login)}">${esc(a.login)}</span>`},
+    {k:'prs_opened',lab:'PRs',cell:a=>fmt(a.prs_opened)},
+    {k:'prs_merged',lab:'Merged',cell:a=>fmt(a.prs_merged)},
+    {k:'reviews',lab:'Reviews',cell:a=>fmt(a.reviews)},
+    {k:'review_comments',lab:'Rev. comments',cell:a=>fmt(a.review_comments)},
+    {k:'issues',lab:'Issues',cell:a=>fmt(a.issues)},
+  ];
+  const activeSort=k=>state.ghSort?state.ghSort===k:k===M, dirOf=()=>state.ghSort?state.ghDir:-1;
+  const header=cols.map(c=>{
+    const on=activeSort(c.k)&&!c.nosort, cls=(c.l?'l ':'')+(c.k===M?'metric-col':'');
+    const aria=on?`aria-sort="${dirOf()===1?'ascending':'descending'}"`:'';
+    const arrow=c.nosort?'':` <span class="ar">${on?(dirOf()===1?'▲':'▼'):'↕'}</span>`;
+    return `<th class="${cls.trim()}" ${c.nosort?'':`data-sort="${c.k}" tabindex="0" role="button"`} ${aria}>${c.lab}${arrow}</th>`;
+  }).join('');
+  const body=list.map(a=>`<tr>`+cols.map(c=>{let inner=c.cell(a),cls=(c.l?'l ':'')+(c.cls||'');
+    if(c.k===M){cls+=' metric-col';inner=`<span class="bar" style="width:${Math.round((a[M]||0)/maxM*44)}px"></span>`+inner;}
+    return `<td class="${cls.trim()}">${inner}</td>`;}).join('')+`</tr>`).join('');
+  $('#tHeadGH').innerHTML=`<tr>${header}</tr>`;
+  $('#tBodyGH').innerHTML=body||`<tr><td colspan="${cols.length}" style="text-align:center;color:var(--muted);padding:26px">No collaboration data.</td></tr>`;
+  $('#tCountGH').textContent=`${list.length} ${list.length===1?'person':'people'} · ${ghPeriodLabel()}`;
+  $('#tHeadGH').querySelectorAll('[data-sort]').forEach(th=>{
+    const go=()=>{const k=th.dataset.sort;if(state.ghSort===k)state.ghDir*=-1;else{state.ghSort=k;state.ghDir=(k==='login')?1:-1;}renderGHTable(arr);writeHash();};
+    th.onclick=go;th.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}};});
+  $('#csvBtnGH').onclick=()=>exportGHCSV(list);
+}
+function exportGHCSV(list){
+  const head=['rank','login','prs_opened','prs_merged','reviews','review_comments','issues'];
+  const q=s=>`"${String(s).replace(/"/g,'""')}"`;
+  const lines=[head.join(',')].concat(list.map(a=>[a._rank,q(a.login),a.prs_opened,a.prs_merged,a.reviews,a.review_comments,a.issues].join(',')));
+  const blob=new Blob(['﻿'+lines.join('\n')],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob),el=document.createElement('a');
+  el.href=url;el.download=`collaboration_${ghPeriodLabel().replace(/[^\w-]+/g,'_')}_by_${state.ghMetric}.csv`;el.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+
 /* ---------- shell + boot ---------- */
 function buildShell(){
+  const viewSeg=HAS_GH()?`<div class="seg" id="viewSeg" role="group" aria-label="View">
+        <button data-view="code" aria-pressed="true">Code (git)</button>
+        <button data-view="collab" aria-pressed="false">Collaboration</button></div>`:'';
   $('#app').innerHTML=`
     <header>
       <div><h1>Contribution Leaderboard</h1><p class="sub">Who contributed most, per time period, across the company's repos.</p></div>
-      <button class="themebtn" id="themeBtn">◐ Auto</button>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${viewSeg}
+        <button class="themebtn" id="themeBtn">◐ Auto</button></div>
     </header>
-    <div class="caveat" id="caveat">
-      <b>Ranking is by code churn (lines changed) — a rough proxy.</b> It doesn't capture code review, mentoring, or design,
-      and can be skewed by generated code. Use it as a conversation-starter, not a performance score. Bots and vendored/generated
-      bulk commits are already excluded upstream. <span style="opacity:.75">(“Repos” over multi-month periods is a max-per-month breadth proxy — see card tooltip.)</span>
-      <button class="x" id="caveatX" aria-label="Dismiss">×</button>
+    <div id="codeView">
+      <div class="caveat" id="caveat">
+        <b>Ranking is by code churn (lines changed) — a rough proxy.</b> It doesn't capture code review, mentoring, or design,
+        and can be skewed by generated code. Use it as a conversation-starter, not a performance score. Bots and vendored/generated
+        bulk commits are already excluded upstream.${HAS_GH()?' <b>The <a href="#" id="toCollab">Collaboration tab</a> now surfaces review &amp; PR work churn can\'t see.</b>':''} <span style="opacity:.75">(“Repos” over multi-month periods is a max-per-month breadth proxy — see card tooltip.)</span>
+        <button class="x" id="caveatX" aria-label="Dismiss">×</button>
+      </div>
+      <div class="controls" id="ctlBar"></div>
+      <div class="cards" id="cards"></div>
+      <div class="panel">
+        <div class="panel-h"><h2>Contributor trends over time</h2><span class="meta" id="trendMeta"></span></div>
+        <div class="panel-b"><div class="chart-wrap" id="trendBox"></div><div class="tt" id="trendTip"></div><div class="legend" id="legend"></div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-h"><h2>Leaderboard</h2>
+          <div style="display:flex;gap:12px;align-items:center"><span class="meta" id="tCount"></span>
+          <button class="clearbtn" id="csvBtn">⭳ Export CSV</button></div></div>
+        <div class="panel-b" style="padding:0"><div class="tablebox"><table><thead id="tHead"></thead><tbody id="tBody"></tbody></table></div></div>
+      </div>
     </div>
-    <div class="controls" id="ctlBar"></div>
-    <div class="cards" id="cards"></div>
-    <div class="panel">
-      <div class="panel-h"><h2>Contributor trends over time</h2><span class="meta" id="trendMeta"></span></div>
-      <div class="panel-b"><div class="chart-wrap" id="trendBox"></div><div class="tt" id="trendTip"></div><div class="legend" id="legend"></div></div>
-    </div>
-    <div class="panel">
-      <div class="panel-h"><h2>Leaderboard</h2>
-        <div style="display:flex;gap:12px;align-items:center"><span class="meta" id="tCount"></span>
-        <button class="clearbtn" id="csvBtn">⭳ Export CSV</button></div></div>
-      <div class="panel-b" style="padding:0"><div class="tablebox"><table><thead id="tHead"></thead><tbody id="tBody"></tbody></table></div></div>
-    </div>`;
+    ${HAS_GH()?`<div id="collabView" hidden>
+      <div class="caveat" style="border-left-color:var(--s2)">
+        <b>This is the work churn can't see.</b> Pull requests, code reviews, review comments and issues come from the GitHub
+        API, not git — so a heavy reviewer who writes little code finally shows up. Bots are excluded; issues may be sparse if
+        the team tracks them elsewhere.
+      </div>
+      <div class="controls" id="ctlBarGH"></div>
+      <div class="cards" id="cardsGH"></div>
+      <div class="panel">
+        <div class="panel-h"><h2>Collaboration leaderboard</h2>
+          <div style="display:flex;gap:12px;align-items:center"><span class="meta" id="tCountGH"></span>
+          <button class="clearbtn" id="csvBtnGH">⭳ Export CSV</button></div></div>
+        <div class="panel-b" style="padding:0"><div class="tablebox"><table><thead id="tHeadGH"></thead><tbody id="tBodyGH"></tbody></table></div></div>
+      </div>
+    </div>`:''}`;
   $('#trendMeta').textContent='click legend to toggle · hover for values';
   $('#csvBtn').onclick=exportCSV;
   const cav=$('#caveat');if(localStorage.getItem('lb-caveat')==='off')cav.remove();
   else $('#caveatX').onclick=()=>{cav.remove();localStorage.setItem('lb-caveat','off');};
+  if(HAS_GH()){
+    $('#viewSeg').querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{state.view=b.dataset.view;state.ghSort=null;render();});
+    const tc=$('#toCollab');if(tc)tc.onclick=e=>{e.preventDefault();state.view='collab';render();};
+  }
   initTheme();
 }
 function start(rows){
   if(!Array.isArray(rows)||!rows.length){showErr('File loaded but contained no records.');return;}
-  prep(rows);readHash();
+  prep(rows);prepGH();readHash();
   $('#load').style.display='none';$('#app').hidden=false;
   buildShell();render();
 }

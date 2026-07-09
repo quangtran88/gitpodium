@@ -37,9 +37,13 @@ A self-contained `report.html` with:
 - **Per-month / quarter / year** leaderboards — scrub through time.
 - **Per-person trend charts** — see when someone ramped up or went quiet.
 - **Repo spread** — one-repo specialist vs. someone who touches everything.
+- **Collaboration tab** *(GitHub)* — PRs opened/merged, code reviews, review comments,
+  and issues per GitHub user. This is the review & PR work churn *can't* see: a heavy
+  reviewer who writes little code finally shows up as a top contributor.
 - **Light / dark theme**, keyboard-navigable, works offline from `file://`.
 
-Plus the raw `monthly.csv` and `contrib-commits.tsv` if you want to slice it yourself.
+Plus the raw `monthly.csv`, `contrib-commits.tsv`, and `github.json` if you want to slice
+it yourself.
 
 ## Why it's not just `git shortlog`
 
@@ -50,6 +54,7 @@ Plus the raw `monthly.csv` and `contrib-commits.tsv` if you want to slice it you
 | Bots (`dependabot`, CI, AI agents) top the chart | `*[bot]` + configurable non-human filter |
 | Only `main` is counted | Walks `--all` refs, dedups shared commits |
 | Many repos across an org | Clones the whole org (or user) in parallel, one pass |
+| Reviews, PRs, and issues never touch git | Optional **Collaboration tab** pulls PRs / reviews / review-comments / issues per GitHub login straight from the API |
 | "Just give me a link to share" | Data is **baked into** the HTML — one file, no server |
 
 ## Install — copy this to your coding agent
@@ -107,6 +112,7 @@ gitpodium clone acme-inc acme-labs                 # → ./clones/   (idempotent
 gitpodium mailmap                                  # → ./.mailmap  (identity dedup)
 gitpodium collect                                  # → ./contrib-commits.tsv (all branches)
 gitpodium rollup                                   # → ./monthly.json + monthly.csv
+gitpodium github acme-inc acme-labs                # → ./github.json (PRs/reviews/issues; gh API)
 gitpodium report                                   # → ./report.html (self-contained)
 
 gitpodium rank                                     # console leaderboard, all-time
@@ -128,11 +134,15 @@ gitpodium rank 2025-01-01 2025-12-31 quarter       # windowed + bucketed
    contrib-commits.tsv                           (1 row / commit, author-dated)
         │  filter bots + bulk, aggregate         rollup.sh
         ▼
-   monthly.json  ──────────────────────────────  build-report.py
-        │  embed into template                        │
-        ▼                                              ▼
-   report.html  ◀───────────────────────────────  self-contained, shareable
+   monthly.json  ─────────────┐
+                              ├──▶ build-report.py ──▶ report.html
+   github.json  ──────────────┘     (embeds both)      (self-contained, shareable)
+        ▲
+        └─ gh api graphql: PRs · reviews · review comments · issues   collect-github.py
 ```
+
+The `github.json` branch is **optional and additive** — skip it (or run against non-GitHub
+repos) and you still get the full git-churn report; the Collaboration tab just won't appear.
 
 Everything writes to your **current directory** (override with `GITPODIUM_OUT`). Nothing
 is written back into the install folder, so you can keep it read-only on your `PATH`.
@@ -148,8 +158,9 @@ Drop a `gitpodium.config.sh` in your working dir (auto-sourced) — see
 | `GITPODIUM_METRIC` | `churn` | Default metric in the report: `churn`/`commits`/`added`/`deleted`/`net`/`repos` (viewers can still switch live) |
 | `MAXCHURN` | `10000` | Drop a commit whose added+deleted exceeds this (vendored dumps). `0` = off |
 | `MAXFILES` | `400` | Drop a commit touching more files than this. `0` = off |
-| `DROP_BOTS` | `1` | Exclude `*[bot]` accounts |
-| `GITPODIUM_IDENTITY` | — | JSON of manual identity merges — see [`examples/gitpodium.identity.json`](examples/gitpodium.identity.json) |
+| `DROP_BOTS` | `1` | Exclude `*[bot]` accounts (git churn **and** GitHub reviewers/authors: any GraphQL `Bot`-type actor, `*[bot]`, or `extra_bots`) |
+| `GITPODIUM_SKIP_GITHUB` | `0` | `1` skips the API-based Collaboration step in `run` (e.g. non-GitHub repos, or to save rate limit) |
+| `GITPODIUM_IDENTITY` | — | JSON of manual identity merges + `extra_bots` — see [`examples/gitpodium.identity.json`](examples/gitpodium.identity.json) |
 | `GITPODIUM_CLONES` | `./clones` | Reuse an existing clone mirror |
 | `GITPODIUM_OUT` | `.` | Where artifacts are written |
 
@@ -173,6 +184,11 @@ the same person, or you want to pin a display name:
 - Binary files and the excluded paths (vendor, `dist/`, lockfiles, minified) don't count.
 - Rewritten history / force-pushes reflect whatever's currently reachable.
 - Private repos need your `gh` token to have access.
+- The **Collaboration tab** needs the GitHub API (only GitHub-hosted repos your `gh` token
+  can see) and is subject to the GraphQL rate limit. Issues may be sparse if the team
+  tracks them in Jira/Linear instead — the report says so when the count is zero. It's
+  keyed by **GitHub login**, which is a different identity space from the git author names
+  in the churn view, so the two tabs are shown side by side rather than merged.
 
 ## License
 

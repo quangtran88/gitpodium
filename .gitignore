@@ -3,6 +3,7 @@ clones/
 contrib-commits.tsv
 monthly.json
 monthly.csv
+github.json
 report.html
 .mailmap
 mailmap-review.md
@@ -10,3 +11,6 @@ clone-failures.log
 /gitpodium.config.sh
 /gitpodium.identity.json
 out/
+
+# python bytecode
+__pycache__/
