@@ -1,26 +1,36 @@
 # gitpodium — agent instructions (Codex / OpenCode / any AGENTS.md-aware CLI)
 
-gitpodium ranks git contributors across all branches and full history of one or more
-GitHub orgs/users and produces a single self-contained `report.html`. Use it when the
-user wants to know who contributed most across a set of repos, wants a contribution
-audit, a per-month/quarter breakdown, or a shareable contributor leaderboard.
+gitpodium is **agent-driven**: when the user wants to know who contributed most across a
+set of repos, YOU run the whole audit for them — check prerequisites, interview them for
+the setup, run the pipeline, deliver a self-contained `report.html`, and state the caveat.
+The user should not have to type commands.
 
-## When to reach for this
-Triggers: "who contributed most", "rank contributors", "contribution audit / leaderboard",
-"activity across all our repos", "who wrote the most code this quarter".
+## When to use
+Triggers: "who contributed most", "rank contributors", "contribution/activity audit",
+"leaderboard across our repos", "who wrote the most code this quarter".
 
-## Prerequisites
-`gh` (authenticated — check `gh auth status`), `git`, `python3`, `bash`, `awk`.
+## Run it as an interview (don't dump commands on the user)
 
-## Run it
-From an **empty working dir** (all outputs land there):
-```bash
-./gitpodium run <owner> [owner...]     # owner = GitHub org OR user
-# -> ./report.html   (clone → mailmap → collect → rollup → embed)
-```
-Individual steps if you need them: `clone`, `mailmap`, `collect`, `rollup`, `report`
-(HTML), `rank` (console). See `SKILL.md` for the full breakdown and tuning env vars
-(`MAXCHURN`, `MAXFILES`, `DROP_BOTS`, `GITPODIUM_IDENTITY`, `GITPODIUM_CLONES`, `GITPODIUM_OUT`).
+1. **Prerequisites.** `gh auth status` — if not authed, have them run `gh auth login`
+   (needs `repo` + `read:org` scopes). Confirm `git` + `python3`. Don't proceed until green.
+2. **Scope.** Ask which GitHub **owners** (orgs and/or users), or a specific `owner/repo`
+   list. Private repos need token access.
+3. **Metric.** Ask how to rank: `churn` (default) / `commits` / `added` / `deleted` /
+   `net` / `repos`. → `GITPODIUM_METRIC`.
+4. **Window.** All-time or a date range; bucket the console view by month/quarter/year.
+5. **Filters.** Bots off by default (`DROP_BOTS=1`); bulk/vendored dumps dropped via
+   `MAXCHURN=10000`/`MAXFILES=400`. Offer raw (all `0`).
+6. **Output.** Where `report.html` goes → `GITPODIUM_OUT` (default: current dir).
+7. **Confirm** the plan, then run (export the env, then):
+   ```bash
+   ./gitpodium run <owner...>        # clone → mailmap → collect → rollup → report.html
+   ```
+8. **Review identities** (optional): after the mailmap step, offer `mailmap-review.md`;
+   confirmed merges go into `GITPODIUM_IDENTITY=gitpodium.identity.json`, then re-run.
+9. **Deliver:** point to `report.html`, narrate the top contributors via `./gitpodium rank`
+   (it prints how much was dropped as bulk/bots), and give the caveat below.
+
+Full step-by-step and the flag↔answer table live in `SKILL.md`.
 
 ## Non-negotiable caveat to surface every time
 Churn (added+deleted lines) ≠ contribution. Review, mentoring, design, and debugging

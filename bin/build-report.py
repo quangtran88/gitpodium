@@ -24,7 +24,11 @@ raw = open(DATA, encoding="utf-8").read().strip()
 # '<' only occurs inside JSON string values, where < is valid — this makes an
 # embedded "</script>" impossible without changing the parsed data.
 safe = raw.replace("<", "\\u003c")
-html = tpl.replace(MARKER, f"<script>window.__GITPODIUM_DATA__={safe};</script>")
+# Optional agent-chosen default metric (the report still lets viewers switch live).
+METRICS = {"churn", "commits", "added", "deleted", "net", "repos"}
+metric = (os.environ.get("GITPODIUM_METRIC") or "").strip().lower()
+mjs = f'window.__GITPODIUM_METRIC__="{metric}";' if metric in METRICS else ""
+html = tpl.replace(MARKER, f"<script>{mjs}window.__GITPODIUM_DATA__={safe};</script>")
 with open(OUT, "w", encoding="utf-8") as f:
     f.write(html)
 print(f"wrote {OUT}  ({os.path.getsize(OUT) // 1024} KB, self-contained — open it in any browser)")

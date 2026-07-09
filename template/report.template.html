@@ -166,7 +166,8 @@ const esc=s=>s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 
 /* ---------- state ---------- */
 const METRICS={churn:'Churn',commits:'Commits',added:'Added',deleted:'Deleted',net:'Net (add−del)',repos:'Repos'};
-const state={g:'all',p:'',metric:'churn',q:'',topN:8,from:'',to:'',a:'',sort:null,dir:-1};
+const METRIC_DEFAULT=(window.__GITPODIUM_METRIC__ in METRICS)?window.__GITPODIUM_METRIC__:'churn';   // gitpodium: agent-chosen default
+const state={g:'all',p:'',metric:METRIC_DEFAULT,q:'',topN:8,from:'',to:'',a:'',sort:null,dir:-1};
 let RAW=[],monthsAll=[],byMonth=new Map(),perAM=new Map(),monthRank=new Map(),hidden=new Set();
 
 /* ---------- month helpers (string compare works on YYYY-MM) ---------- */
@@ -218,7 +219,7 @@ const rankBy=(map,metric)=>{const arr=[...map.values()].sort((x,y)=>mv(y,metric)
 /* ---------- URL hash ---------- */
 let applying=false;
 function readHash(){
-  Object.assign(state,{g:'all',p:'',metric:'churn',q:'',from:'',to:'',a:'',topN:8,sort:null,dir:-1});
+  Object.assign(state,{g:'all',p:'',metric:METRIC_DEFAULT,q:'',from:'',to:'',a:'',topN:8,sort:null,dir:-1});
   const p=new URLSearchParams(location.hash.slice(1));
   for(const k of ['g','p','metric','q','from','to','a'])if(p.has(k))state[k]=p.get(k);
   if(p.has('n'))state.topN=+p.get('n')||8;

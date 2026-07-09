@@ -8,10 +8,15 @@ otherwise crown a bot — and bakes the result into a single, shareable `report.
 No dashboard to host. No account to create. No data leaves your machine. One HTML file
 you can double-click, email, or drop in Slack.
 
-```bash
-gitpodium run acme-inc acme-labs
-# → ./report.html   (open it in any browser)
-```
+**gitpodium is meant to be driven by your AI agent, not run by hand.** Install it as a
+skill (Claude Code, Codex, OpenCode — see below) and just ask:
+
+> *"Who contributed most across our GitHub org this year?"*
+
+The agent checks your GitHub CLI login, asks what to audit (which orgs, which metric,
+what to filter out, where to put the report), then clones, dedups, and hands you a
+`report.html`. The commands below are what it runs under the hood — you can also run
+them yourself.
 
 ---
 
@@ -47,7 +52,22 @@ Plus the raw `monthly.csv` and `contrib-commits.tsv` if you want to slice it you
 | Many repos across an org | Clones the whole org (or user) in parallel, one pass |
 | "Just give me a link to share" | Data is **baked into** the HTML — one file, no server |
 
-## Quick start
+## Use it as an AI-agent skill (the intended way)
+
+gitpodium ships with skill manifests (`SKILL.md`, `AGENTS.md`) that turn the whole audit
+into a conversation. The agent checks your `gh` login, interviews you for scope, metric,
+filters, and output, runs the pipeline, and surfaces the *churn ≠ contribution* caveat.
+
+- **Claude Code** — symlink the repo into your skills dir; `SKILL.md` is auto-discovered:
+  ```bash
+  git clone https://github.com/quangtran88/gitpodium.git
+  ln -s "$PWD/gitpodium" ~/.claude/skills/gitpodium
+  ```
+  Then just ask: *"Audit contributions across my acme-inc org, rank by commits."*
+- **Codex** / **OpenCode** — both read `AGENTS.md`. Point the agent at the repo (or copy
+  `AGENTS.md` into your project) and ask the same way.
+
+## Run it yourself (what the agent runs under the hood)
 
 **Prerequisites:** [`gh`](https://cli.github.com) (run `gh auth status`), plus `git`,
 `python3`, `bash`, `awk` — all standard on macOS/Linux.
@@ -108,6 +128,7 @@ Drop a `gitpodium.config.sh` in your working dir (auto-sourced) — see
 | Env var | Default | What it does |
 |---|---|---|
 | `GITPODIUM_ORGS` | — | Owners for `gitpodium run` with no args |
+| `GITPODIUM_METRIC` | `churn` | Default metric in the report: `churn`/`commits`/`added`/`deleted`/`net`/`repos` (viewers can still switch live) |
 | `MAXCHURN` | `10000` | Drop a commit whose added+deleted exceeds this (vendored dumps). `0` = off |
 | `MAXFILES` | `400` | Drop a commit touching more files than this. `0` = off |
 | `DROP_BOTS` | `1` | Exclude `*[bot]` accounts |
@@ -128,20 +149,6 @@ the same person, or you want to pin a display name:
 
 `gitpodium mailmap` also writes `mailmap-review.md` listing low-confidence guesses
 (one name is a prefix of another) it left **un**merged for you to confirm.
-
-## Use it as an AI-agent skill
-
-gitpodium ships with skill manifests so an agent can run the whole pipeline for you when
-you ask "who contributed most across our repos?"
-
-- **Claude Code** — symlink the repo into your skills dir; `SKILL.md` is auto-discovered:
-  ```bash
-  ln -s /path/to/gitpodium ~/.claude/skills/gitpodium
-  ```
-- **Codex** / **OpenCode** — both read `AGENTS.md`. Point the agent at the repo (or copy
-  `AGENTS.md` into your project) and it knows when and how to run gitpodium.
-
-Every manifest hard-codes the *churn ≠ contribution* caveat, so the agent surfaces it too.
 
 ## Limitations
 
