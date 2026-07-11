@@ -12,17 +12,25 @@
 #   gitpodium github <owner>...  GitHub PRs/reviews/issues -> github.json (Collaboration tab)
 #   gitpodium report             monthly.json (+github.json) -> self-contained report.html
 #   gitpodium rank [args...]     console leaderboard (gitpodium rank -h for usage)
+#   gitpodium version            print the installed revision
 #
 # <owner> is a GitHub org OR user. Filters: MAXCHURN / MAXFILES / DROP_BOTS (env).
 # GITPODIUM_SKIP_GITHUB=1 skips the (API-based, GitHub-only) collaboration step in `run`.
 set -euo pipefail
-HERE="$(cd "$(dirname "$0")" && pwd)"
+# Resolve $0 through symlinks so `ln -s .../gitpodium /usr/local/bin/` works
+# (readlink -f is GNU/newer-macOS only, hence the loop).
+SELF="$0"
+while [ -L "$SELF" ]; do
+  LINK="$(readlink "$SELF")"
+  case "$LINK" in /*) SELF="$LINK" ;; *) SELF="$(dirname "$SELF")/$LINK" ;; esac
+done
+HERE="$(cd "$(dirname "$SELF")" && pwd)"
 BIN="$HERE/bin"
 [ -f "$PWD/gitpodium.config.sh" ] && . "$PWD/gitpodium.config.sh"
 export GITPODIUM_OUT="${GITPODIUM_OUT:-$PWD}"
 CLONES="${GITPODIUM_CLONES:-$PWD/clones}"
 
-usage(){ sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'; }
+usage(){ sed -n '2,18p' "$SELF" | sed 's/^# \{0,1\}//'; }
 
 cmd="${1:-help}"; shift || true
 case "$cmd" in
@@ -49,6 +57,7 @@ case "$cmd" in
     echo "----------------------------------------"
     echo "done -> $GITPODIUM_OUT/report.html"
     ;;
+  version|--version) git -C "$HERE" describe --tags --always 2>/dev/null || echo "unknown (not a git checkout)" ;;
   help|-h|--help) usage ;;
   *) echo "unknown command: $cmd" >&2; echo >&2; usage >&2; exit 2 ;;
 esac

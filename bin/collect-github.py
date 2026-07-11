@@ -18,7 +18,7 @@ Usage:
 Honors: DROP_BOTS (default 1), GITPODIUM_IDENTITY (its "extra_bots" list), GITPODIUM_OUT.
 Only works for GitHub-hosted repos the gh token can see; subject to the GraphQL rate limit.
 """
-import os, sys, json, subprocess, collections
+import os, sys, json, shutil, subprocess, collections
 
 OUT_DIR = os.environ.get("GITPODIUM_OUT") or os.getcwd()
 DROP_BOTS = os.environ.get("DROP_BOTS", "1") != "0"
@@ -172,6 +172,8 @@ def discover_repos(argv):
 
 
 def main():
+    if not shutil.which("gh"):
+        sys.exit("error: gh (GitHub CLI) not found — https://cli.github.com")
     pairs = discover_repos(sys.argv[1:])
     if not pairs:
         sys.exit("usage: collect-github.py <owner...> | -f repos.txt   (needs gh auth)")
