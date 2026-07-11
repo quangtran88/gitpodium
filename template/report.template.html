@@ -162,7 +162,7 @@ const $=(s,r=document)=>r.querySelector(s);
 const fmt=n=>n==null?'–':n.toLocaleString('en-US');
 const fmtc=n=>{const a=Math.abs(n);return (n<0?'-':'')+(a>=1e6?(a/1e6).toFixed(a>=1e7?0:1)+'M':a>=1e3?(a/1e3).toFixed(a>=1e4?0:1)+'k':a);};
 const noDia=s=>s.normalize('NFD').replace(/\p{Diacritic}/gu,'').toLowerCase();
-const esc=s=>s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const esc=s=>s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));   // quotes too: esc() output lands in attributes
 
 /* ---------- state ---------- */
 const METRICS={churn:'Churn',commits:'Commits',added:'Added',deleted:'Deleted',net:'Net (add−del)',repos:'Repos'};
@@ -189,6 +189,9 @@ function prep(rows){
     let mm=perAM.get(r.author);if(!mm)perAM.set(r.author,mm=new Map());mm.set(r.month,r);
   }
   monthsAll=[...byMonth.keys()].sort();
+  // NOTE: months with zero org-wide activity are omitted, so the x-axis is ordinal.
+  // Deliberate: naive calendar-filling lets one bad author date (1970/2099) balloon
+  // the axis to hundreds of empty months and pollute the period dropdowns.
   // per-month ranking by churn (for rank-over-time)
   monthRank=new Map();
   for(const m of monthsAll){
@@ -233,6 +236,7 @@ function readHash(){
   if(!METRICS[state.metric])state.metric='churn';
   if(state.view!=='collab')state.view='code';
   if(!GH_METRICS[state.ghMetric])state.ghMetric='reviews';
+  for(const k of ['from','to'])if(state[k]&&!/^\d{4}-\d{2}$/.test(state[k]))state[k]='';   // else garbage crashes ymRange
 }
 function writeHash(){
   if(applying)return;
@@ -303,9 +307,9 @@ function renderControls(pm){
     ${periodSel}
     <div class="ctl"><label for="mSel">Rank by</label><select id="mSel">${metricSel}</select></div>
     <div class="ctl"><label>Custom range</label><div class="range">
-      <input type="month" id="fromI" value="${state.from}" min="${monthsAll[0]}" max="${monthsAll.at(-1)}" aria-label="From month">
+      <input type="month" id="fromI" value="${esc(state.from)}" min="${monthsAll[0]}" max="${monthsAll.at(-1)}" aria-label="From month">
       <span>→</span>
-      <input type="month" id="toI" value="${state.to}" min="${monthsAll[0]}" max="${monthsAll.at(-1)}" aria-label="To month">
+      <input type="month" id="toI" value="${esc(state.to)}" min="${monthsAll[0]}" max="${monthsAll.at(-1)}" aria-label="To month">
       ${state.from||state.to?'<button class="clearbtn" id="clrRange">clear</button>':''}
     </div></div>
     <div class="ctl"><label for="qI">Search author</label><input type="text" id="qI" placeholder="filter…" value="${esc(state.q)}"></div>
@@ -343,7 +347,7 @@ function renderCards(pm){
     ['Added : Deleted',ratio,`${fmtc(added)} / ${fmtc(deleted)}`],
     ['Avg commit size',fmt(avg),'churn ÷ commits'],
     ['Top contributor',top?`<span title="${esc(top.author)}">${esc(top.author)}</span>`:'–',top?`${fmt(mv(top,state.metric))} ${METRICS[state.metric].toLowerCase()}`:'',0,1],
-    ['Biggest mover',noPrev?'<small>n/a all-time</small>':mover&&mover.d>0?`▲${mover.d} <small>place${mover.d>1?'s':''}</small>`:'–',noPrev?'no previous period':mover&&mover.d>0?esc(mover.a):'no climbers vs '+(pm.plabel||'prev')],
+    ['Biggest mover',noPrev?'<small>n/a all-time</small>':mover&&mover.d>0?`▲${mover.d} <small>place${mover.d>1?'s':''}</small>`:'–',noPrev?'no previous period':mover&&mover.d>0?mover.a:'no climbers vs '+(pm.plabel||'prev')],
     ['Top-3 share',conc+'%',`of churn · bus-factor signal`,1],
   ];
   $('#cards').innerHTML=cards.map(([k,v,d,hint,big])=>
@@ -434,7 +438,7 @@ function renderTable(pm){
     ...(M==='net'?[{k:'net',lab:'Net',cell:a=>fmt(a.net)}]:[]),
     {k:'churn',lab:'Churn',cell:a=>fmt(a.churn)},
     {k:'commits',lab:'Commits',cell:a=>fmt(a.commits)},
-    {k:'repos',lab:'Repos',cell:a=>fmt(a.repos)},
+    {k:'repos',lab:'Repos (peak mo)',cell:a=>fmt(a.repos)},
     {k:'share',lab:'% churn',cls:'share',cell:a=>a.share.toFixed(1)+'%'},
     {k:'spark',lab:'Trend',l:1,nosort:1,cell:a=>spark(monthsAll.map(m=>mv(perAM.get(a.author)?.get(m),M)))},
     {k:'delta',lab:'Δ rank',cell:a=>{const d=a.delta,dc=noPrev?'same':d==null?(a.inPrev?'same':'new'):d>0?'up':d<0?'down':'same';
@@ -492,7 +496,7 @@ function openDrawer(author){
   const cr=rankInfo.rm.get(author);
   const d=$('#drawer');
   d.innerHTML=`<div class="drawer-h"><div><h2 id="dname">${esc(author)}</h2>
-      <div class="rk">${cr?`Rank #${cr} in ${CUR._pm.label} by ${METRICS[state.metric].toLowerCase()}`:`No activity in ${CUR._pm.label}`} · best-ever rank #${bestRank}</div></div>
+      <div class="rk">${cr?`Rank #${cr} in ${esc(CUR._pm.label)} by ${METRICS[state.metric].toLowerCase()}`:`No activity in ${esc(CUR._pm.label)}`} · best-ever rank #${bestRank}</div></div>
       <button class="closebtn" id="dClose" aria-label="Close">×</button></div>
     <div class="drawer-b">
       <div class="dstats">
