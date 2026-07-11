@@ -164,7 +164,8 @@ is written back into the install folder, so you can keep it read-only on your `P
 ## Configuration
 
 Drop a `gitpodium.config.sh` in your working dir (auto-sourced) — see
-[`examples/gitpodium.config.sh`](examples/gitpodium.config.sh):
+[`examples/gitpodium.config.sh`](examples/gitpodium.config.sh). It is **executed as
+shell**, so only run gitpodium in directories you trust:
 
 | Env var | Default | What it does |
 |---|---|---|
@@ -198,6 +199,19 @@ the same person, or you want to pin a display name:
 - Binary files and the excluded paths (vendor, `dist/`, lockfiles, minified) don't count.
 - Rewritten history / force-pushes reflect whatever's currently reachable.
 - Private repos need your `gh` token to have access.
+- **Forks are skipped** (`gh repo list --source`) — a fork would import its entire
+  upstream author history. If your org does real work in a fork, list it explicitly
+  with `clone-all.sh -f repos.txt`. Duplicate commits (same sha in two clones) are
+  counted once either way. Owner listing is capped at 1000 repos (`gh` limit) — a
+  warning is printed if an owner hits it.
+- Commit months use the **author-local** date; Collaboration months use **UTC**
+  timestamps from the API — work near a month boundary can land in adjacent months
+  across the two tabs.
+- The trend chart's x-axis skips months with zero org-wide activity (ordinal, not
+  calendar — keeps one mis-dated 1970/2099 commit from flattening the whole chart).
+- A committer named exactly `claude` (or with the `noreply@anthropic.com` email) is
+  treated as an AI agent and filed under `automation[bot]` by default — that's the
+  stock Claude Code commit identity. Add your own agents via `extra_bots`.
 - The **Collaboration tab** needs the GitHub API (only GitHub-hosted repos your `gh` token
   can see) and is subject to the GraphQL rate limit. Issues may be sparse if the team
   tracks them in Jira/Linear instead — the report says so when the count is zero. It's

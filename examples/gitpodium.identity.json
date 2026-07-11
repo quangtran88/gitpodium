@@ -9,5 +9,5 @@
     "acmebot": ["Jane Doe", "jane@acme.com"]
   },
 
-  "extra_bots": ["ci-runner", "release-bot", "dependabot"]
+  "extra_bots": ["ci-runner", "release-bot", "dependabot", "workstation", "agent-crew"]
 }
