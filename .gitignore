@@ -14,3 +14,7 @@ out/
 
 # python bytecode
 __pycache__/
+
+# local dev debris — AI-tooling state, ad-hoc test redirects
+.omc/
+test_out*
