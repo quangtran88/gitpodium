@@ -95,11 +95,12 @@ Echo back a one-paragraph plan: *owners, metric, window, filters, output*. On ap
 export the chosen env vars and run — for many repos, run the clone in the background:
 
 ```bash
-export GITPODIUM_OUT="<out-dir>" GITPODIUM_METRIC="<metric>" \
+export GITPODIUM_OUT="<out-dir>" GITPODIUM_CLONES="<out-dir>/clones" GITPODIUM_METRIC="<metric>" \
        MAXCHURN=<n> MAXFILES=<n> DROP_BOTS=<0|1>
+# GITPODIUM_CLONES must be set: clone-all.sh defaults to $PWD/clones, NOT $GITPODIUM_OUT/clones.
 "$GP/bin/clone-all.sh"  <owners...>          # or: -f repos.txt   (idempotent; re-run updates)
-"$GP/bin/build-mailmap.py" "$GITPODIUM_OUT/clones"
-"$GP/bin/collect.sh"       "$GITPODIUM_OUT/clones"
+"$GP/bin/build-mailmap.py" "$GITPODIUM_CLONES"
+"$GP/bin/collect.sh"       "$GITPODIUM_CLONES"
 "$GP/bin/rollup.sh"
 "$GP/bin/collect-github.py" <owners...>      # PRs/reviews/issues -> github.json (gh API; skip w/ GITPODIUM_SKIP_GITHUB=1)
 "$GP/bin/build-report.py"                    # -> $GITPODIUM_OUT/report.html (embeds both datasets)
@@ -118,6 +119,9 @@ After `build-mailmap.py`, it prints how many identities merged and writes
 
 ## Step 8 — Deliver
 
+- Check `$GITPODIUM_OUT/clone-failures.log` first — repos that failed to clone/update are
+  listed there and the run continues without them. If it's non-empty, tell the user which
+  repos are missing from the report.
 - Point the user to `report.html` (they open it in any browser).
 - Narrate the top few contributors with `"$GP/bin/report.sh"` (respects the same
   window/filter env). The transparency line shows how many commits/churn were dropped

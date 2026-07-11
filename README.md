@@ -1,5 +1,7 @@
 # 🏆 gitpodium
 
+[![CI](https://github.com/quangtran88/gitpodium/actions/workflows/ci.yml/badge.svg)](https://github.com/quangtran88/gitpodium/actions/workflows/ci.yml)
+
 **Who actually wrote the code?** Point gitpodium at your GitHub orgs, and it clones
 every repo, walks *every branch of the full history*, untangles the fact that one human
 commits under five different emails, throws out the vendored-dump commits that would
@@ -114,7 +116,7 @@ cd some-empty-working-dir           # artifacts land in the current directory
 
 # one shot: clone → dedup → collect → rollup → report.html
 /path/to/gitpodium/gitpodium run acme-inc acme-labs
-open report.html
+open report.html                    # macOS (Linux: xdg-open report.html)
 ```
 
 `<owner>` can be a GitHub **org or a user**. Re-run any time — clones update in place.
@@ -122,6 +124,7 @@ open report.html
 ### Or drive it step by step
 
 ```bash
+export PATH="$PATH:/path/to/gitpodium"             # or: ln -s /path/to/gitpodium/gitpodium ~/bin/
 gitpodium clone acme-inc acme-labs                 # → ./clones/   (idempotent)
 gitpodium mailmap                                  # → ./.mailmap  (identity dedup)
 gitpodium collect                                  # → ./contrib-commits.tsv (all branches)
@@ -199,6 +202,8 @@ the same person, or you want to pin a display name:
 - Binary files and the excluded paths (vendor, `dist/`, lockfiles, minified) don't count.
 - Rewritten history / force-pushes reflect whatever's currently reachable.
 - Private repos need your `gh` token to have access.
+- Repos that fail to clone/update are listed in `./clone-failures.log` and the run
+  continues without them — check it if a repo seems missing from the report.
 - **Forks are skipped** (`gh repo list --source`) — a fork would import its entire
   upstream author history. If your org does real work in a fork, list it explicitly
   with `clone-all.sh -f repos.txt`. Duplicate commits (same sha in two clones) are
@@ -221,3 +226,5 @@ the same person, or you want to pin a display name:
 ## License
 
 MIT © 2026 Quang Tran
+
+*gitpodium ("git" + "podium") is an independent project, not affiliated with Gitpod/Ona.*
