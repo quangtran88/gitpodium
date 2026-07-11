@@ -3,8 +3,8 @@
 self-contained report.html: one file, no server, no separate data file. Opens
 straight from the filesystem (double-click) and is safe to email/Slack/host as-is.
 
-Usage: build-report.py [monthly.json] [report.html]
-  defaults: $GITPODIUM_OUT/monthly.json  ->  $GITPODIUM_OUT/report.html
+Usage: build-report.py [monthly.json] [report.html] [github.json]
+  defaults: $GITPODIUM_OUT/monthly.json (+ github.json if present) -> $GITPODIUM_OUT/report.html
 """
 import os, sys, json
 

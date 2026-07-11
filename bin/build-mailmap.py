@@ -32,11 +32,14 @@ OUT_DIR = os.environ.get("GITPODIUM_OUT") or os.getcwd()
 
 cfg = {}
 if CONFIG:
-    with open(CONFIG) as f:
+    with open(CONFIG, encoding="utf-8") as f:
         cfg = json.load(f)
 FORCE_MERGE = [set(g) for g in cfg.get("force_merge", [])]
 CANONICAL_OVERRIDE = {k: tuple(v) for k, v in cfg.get("canonical_override", {}).items()}
-DEFAULT_BOTS = {"claude", "workstation", "agent-crew"}
+# "claude" (+ noreply@anthropic.com below) is the default Claude Code commit identity.
+# A human whose git name is literally just "claude" would be misfiled — rare enough to
+# accept as a default; environment-specific bot names belong in extra_bots.
+DEFAULT_BOTS = {"claude"}
 EXTRA_BOTS = {str(b).strip().lower() for b in cfg.get("extra_bots", [])}
 BOT_NAMES = DEFAULT_BOTS | EXTRA_BOTS
 
@@ -82,14 +85,20 @@ def is_nonhuman(name, email):
 
 # 1) collect raw identities (no mailmap) with commit counts
 counts = Counter()
-dirs = [d for d in sorted(os.listdir(ROOT)) if os.path.isdir(os.path.join(ROOT, d, '.git'))]
+# .git may be a dir (normal clone) or a file (worktree/separate-gitdir) — match collect.sh
+dirs = [d for d in sorted(os.listdir(ROOT)) if os.path.exists(os.path.join(ROOT, d, '.git'))]
 for d in dirs:
     p = os.path.join(ROOT, d)
     try:
-        out = subprocess.run(['git', '-C', p, 'log', '--all', '--no-merges', '--pretty=%an%x09%ae'],
-                             capture_output=True, text=True, timeout=180).stdout
-    except Exception:
+        r = subprocess.run(['git', '-C', p, 'log', '--all', '--no-merges', '--pretty=%an%x09%ae'],
+                           capture_output=True, encoding='utf-8', errors='replace', timeout=180)
+    except Exception as e:
+        sys.stderr.write(f"warning: skipping {d}: {e}\n")
         continue
+    if r.returncode != 0:
+        sys.stderr.write(f"warning: skipping {d}: git log failed\n")
+        continue
+    out = r.stdout
     for line in out.splitlines():
         if '\t' not in line:
             continue
@@ -171,7 +180,7 @@ for members in clusters.values():
 if nonhuman_aliases:
     mailmap += ["", "# --- non-human committers (excluded) ---", "automation[bot] <automation@localhost>"]
     mailmap += nonhuman_aliases
-with open(os.path.join(OUT_DIR, ".mailmap"), "w") as f:
+with open(os.path.join(OUT_DIR, ".mailmap"), "w", encoding="utf-8") as f:
     f.write("\n".join(mailmap) + "\n")
 
 # 4) residual review — prefix-name guesses still in different clusters
@@ -193,7 +202,7 @@ rev = ["# Residual review — OPTIONAL (low-confidence, left UNMERGED)", "",
 for ra, rb in sorted(residual, key=lambda p: -(ccommits[p[0]] + ccommits[p[1]])):
     (na, ea), (nb, eb) = canon[ra], canon[rb]
     rev.append(f'- "{na}" <{ea}> ({ccommits[ra]} c)  ~  "{nb}" <{eb}> ({ccommits[rb]} c)')
-with open(os.path.join(OUT_DIR, "mailmap-review.md"), "w") as f:
+with open(os.path.join(OUT_DIR, "mailmap-review.md"), "w", encoding="utf-8") as f:
     f.write("\n".join(rev) + "\n")
 
 # 5) summary

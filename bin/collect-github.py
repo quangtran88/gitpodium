@@ -100,7 +100,7 @@ def gql(query, owner, repo, cur):
             "-F", "query=" + query]
     if cur:
         args += ["-F", f"cur={cur}"]
-    r = subprocess.run(args, capture_output=True, text=True)
+    r = subprocess.run(args, capture_output=True, encoding="utf-8", errors="replace")
     if r.returncode != 0:
         err = (r.stderr or r.stdout).strip().replace("\n", " ")[:160]
         sys.stderr.write(f"  ! {owner}/{repo}: {err}\n")
@@ -147,14 +147,19 @@ def discover_repos(argv):
             if line:
                 nwos.append(line)
     for owner in owners:
+        # --source: skip forks, mirroring clone-all.sh — a fork's upstream history
+        # isn't this owner's work. Add a specific fork via -f repos.txt.
         r = subprocess.run(
-            ["gh", "repo", "list", owner, "--limit", "1000", "--json", "nameWithOwner",
-             "-q", ".[].nameWithOwner"],
-            capture_output=True, text=True)
+            ["gh", "repo", "list", owner, "--source", "--limit", "1000",
+             "--json", "nameWithOwner", "-q", ".[].nameWithOwner"],
+            capture_output=True, encoding="utf-8", errors="replace")
         if r.returncode != 0:
             sys.stderr.write(f"  ! gh repo list {owner}: {r.stderr.strip()[:160]}\n")
             continue
-        nwos += [l.strip() for l in r.stdout.splitlines() if l.strip()]
+        found = [l.strip() for l in r.stdout.splitlines() if l.strip()]
+        if len(found) >= 1000:
+            sys.stderr.write(f"  ! {owner} returned 1000 repos — gh list cap hit, some may be missing\n")
+        nwos += found
 
     seen, pairs = set(), []
     for nwo in sorted(set(nwos)):
@@ -206,7 +211,8 @@ def main():
                         cur[0] = sub
                     cur[1] += c
             for rl, (sub, c) in per_reviewer.items():
-                m = month(sub)
+                # pending-only reviews have no submittedAt — credit the PR's month
+                m = month(sub) or month(n.get("createdAt"))
                 if not m:
                     continue
                 reviews[(m, rl)] += 1
