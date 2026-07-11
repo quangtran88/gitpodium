@@ -1,0 +1,19 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # -S warning: SC1091 (sourced config not followed) and SC2016 (intentional
+      # single-quoted awk vars) are info-level and expected.
+      - name: shellcheck
+        run: shellcheck -S warning gitpodium bin/*.sh tests/*.sh
+      - name: python compile
+        run: python3 -m py_compile bin/*.py
+      - name: smoke test
+        run: bash tests/smoke.sh
