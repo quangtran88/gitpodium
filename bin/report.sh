@@ -19,11 +19,18 @@ set -euo pipefail
 OUT_DIR="${GITPODIUM_OUT:-$PWD}"
 TSV="$OUT_DIR/contrib-commits.tsv"
 [ -f "$TSV" ] || { echo "missing $TSV — run collect.sh <clones> first" >&2; exit 1; }
+case "${1:-}" in -h|--help) sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;; esac
 FROM="${1:-0000-00-00}"; TO="${2:-9999-99-99}"; BY="${3:-}"
+# Pad year / year-month bounds to full dates: awk compares strings, and
+# "2025-01-01" > "2025" would silently drop the whole ending year.
+case ${#FROM} in 4) FROM="$FROM-00-00" ;; 7) FROM="$FROM-00" ;; esac
+case ${#TO}   in 4) TO="$TO-99-99"     ;; 7) TO="$TO-99"     ;; esac
 MAXCHURN="${MAXCHURN:-10000}"; MAXFILES="${MAXFILES:-400}"; DROP_BOTS="${DROP_BOTS:-1}"
 
-# keep(): the shared inclusion predicate.  $2 date, $3 author, $4 added, $5 deleted, $6 files
-FILT='function keep(){ if($2<from||$2>to) return 0;
+# keep(): the shared inclusion predicate.  $2 date, $3 author, $4 added, $5 deleted, $6 files, $7 sha
+# DUP: same sha in two clones (mirrored/duplicated repo) counts once.
+FILT='function keep(){ if(DUP[$7]++) return 0;
+        if($2<from||$2>to) return 0;
         if(db && $3 ~ /\[bot\]$/) return 0;
         if(mc>0 && ($4+$5)>mc) return 0;
         if(mf>0 && $6>mf) return 0;
@@ -32,7 +39,8 @@ FILT='function keep(){ if($2<from||$2>to) return 0;
 echo "window: $FROM .. $TO   filters: MAXCHURN=$MAXCHURN MAXFILES=$MAXFILES DROP_BOTS=$DROP_BOTS"
 # --- transparency: what got excluded (no silent truncation) ---
 awk -F'\t' -v from="$FROM" -v to="$TO" -v mc="$MAXCHURN" -v mf="$MAXFILES" -v db="$DROP_BOTS" '
-  NR>1 && $2>=from && $2<=to { tot++; totch+=$4+$5
+  NR>1 && $2>=from && $2<=to { if(dup[$7]++) next
+    tot++; totch+=$4+$5
     if(db && $3 ~ /\[bot\]$/)            { bc++; bch+=$4+$5 }
     else if((mc>0&&($4+$5)>mc)||(mf>0&&$6>mf)) { kc++; kch+=$4+$5 }
     else { keep++; keepch+=$4+$5 } }

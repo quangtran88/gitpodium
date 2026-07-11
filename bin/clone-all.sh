@@ -52,7 +52,12 @@ export FAIL
   [ -n "$REPO_FILE" ] && grep -vE '^\s*(#|$)' "$REPO_FILE"
   for owner in "${OWNERS[@]:-}"; do
     [ -n "$owner" ] || continue
-    gh repo list "$owner" --limit 1000 --json nameWithOwner -q '.[].nameWithOwner'
+    # --source: skip forks — a fork imports its entire upstream author history and
+    # would double-count shared commits. Add a specific fork via -f repos.txt.
+    repos="$(gh repo list "$owner" --source --limit 1000 --json nameWithOwner -q '.[].nameWithOwner')"
+    [ "$(printf '%s\n' "$repos" | grep -c .)" -ge 1000 ] && \
+      echo "WARNING: $owner returned 1000 repos — gh list cap hit, some may be missing" >&2
+    [ -n "$repos" ] && printf '%s\n' "$repos"
   done
 } | sort -u | xargs -P 8 -I{} bash -c 'clone_one "$@"' _ {} "$DEST"
 

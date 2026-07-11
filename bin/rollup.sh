@@ -20,6 +20,7 @@ MAXCHURN="${MAXCHURN:-10000}"; MAXFILES="${MAXFILES:-400}"; DROP_BOTS="${DROP_BO
 recs="$(
   awk -F'\t' -v mc="$MAXCHURN" -v mf="$MAXFILES" -v db="$DROP_BOTS" '
     NR>1 {
+      if(dup[$7]++)                      next     # same sha via a mirrored/duplicated clone
       if(db && $3 ~ /\[bot\]$/)          next     # bots
       if(mc>0 && ($4+$5)>mc)             next     # bulk/vendor/generated import
       if(mf>0 && $6>mf)                  next
@@ -32,6 +33,15 @@ recs="$(
       printf "%s\t%s\t%d\t%d\t%d\t%d\t%d\n", a[1],a[2],add[k],del[k],add[k]+del[k],com[k],rep[k] } }
   ' "$TSV" | sort -t$'\t' -k1,1 -k5,5nr
 )"
+
+# Nothing survived the filters -> valid-but-empty outputs (a blank line would
+# otherwise become a phantom {"month":"","author":"",...} record downstream).
+if [ -z "$recs" ]; then
+  echo "month,author,added,deleted,churn,commits,repos" > "$OUT_DIR/monthly.csv"
+  printf '[]\n' > "$OUT_DIR/monthly.json"
+  echo "wrote empty monthly.csv + monthly.json (0 commits survived the filters)"
+  exit 0
+fi
 
 # CSV (author quoted; embedded quotes doubled per RFC 4180)
 {

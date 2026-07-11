@@ -26,13 +26,15 @@ for dir in "$ROOT"/*/; do
   # ONE rev-walk over all refs (dedups shared commits). Header line prefixed '@'
   # to distinguish it from numstat rows. --date=short => author date YYYY-MM-DD.
   # Sum numstat per commit, then flush one TSV row.
-  git "${MM[@]}" -C "${dir%/}" log --all --no-merges --use-mailmap --numstat \
+  # ${MM[@]+...}: empty-array expansion is an "unbound variable" under set -u on bash 3.2 (stock macOS)
+  git ${MM[@]+"${MM[@]}"} -C "${dir%/}" log --all --no-merges --use-mailmap --numstat \
       --date=short --pretty=format:'@%H%x09%ad%x09%aN' -- . "${EXCLUDES[@]}" 2>/dev/null \
   | awk -F'\t' -v repo="$repo" '
       function flush(){ if (sha!="") printf "%s\t%s\t%s\t%d\t%d\t%d\t%s\n", repo, date, author, add, del, files, sha }
       /^@/ { flush(); sha=substr($1,2); date=$2; author=$3; add=0; del=0; files=0; next }
       NF==3 { files++; if ($1 ~ /^[0-9]+$/) { add+=$1; del+=$2 } }   # numstat ("-" = binary, skip counts)
       END  { flush() }
-    ' >> "$OUT"
+    ' >> "$OUT" \
+  || echo "WARN: git log failed in $repo — skipped (rows above it kept)" >&2
 done
 echo "wrote $OUT  ($(( $(wc -l < "$OUT") - 1 )) commits)"

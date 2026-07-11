@@ -11,7 +11,7 @@
 #   gitpodium rollup             tsv -> monthly.json + monthly.csv
 #   gitpodium github <owner>...  GitHub PRs/reviews/issues -> github.json (Collaboration tab)
 #   gitpodium report             monthly.json (+github.json) -> self-contained report.html
-#   gitpodium rank [args...]     console leaderboard (see: gitpodium rank -h via report.sh header)
+#   gitpodium rank [args...]     console leaderboard (gitpodium rank -h for usage)
 #
 # <owner> is a GitHub org OR user. Filters: MAXCHURN / MAXFILES / DROP_BOTS (env).
 # GITPODIUM_SKIP_GITHUB=1 skips the (API-based, GitHub-only) collaboration step in `run`.
@@ -22,7 +22,7 @@ BIN="$HERE/bin"
 export GITPODIUM_OUT="${GITPODIUM_OUT:-$PWD}"
 CLONES="${GITPODIUM_CLONES:-$PWD/clones}"
 
-usage(){ sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; }
+usage(){ sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'; }
 
 cmd="${1:-help}"; shift || true
 case "$cmd" in
